@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -110,12 +111,22 @@ func (d *devOrchestrator) ExecuteTarget(
 	go func() {
 		defer containerAttachResp.Close()
 		var gerr error
+		stdOutWriter := prefixingWriter(
+			target.Name(),
+			lastContainer.Name(),
+			os.Stdout,
+		)
 		if lastContainer.TTY() {
-			_, gerr = io.Copy(os.Stdout, containerAttachResp.Reader)
+			_, gerr = io.Copy(stdOutWriter, containerAttachResp.Reader)
 		} else {
-			_, gerr = stdcopy.StdCopy(
-				os.Stdout,
+			stdErrWriter := prefixingWriter(
+				target.Name(),
+				lastContainer.Name(),
 				os.Stderr,
+			)
+			_, gerr = stdcopy.StdCopy(
+				stdOutWriter,
+				stdErrWriter,
 				containerAttachResp.Reader,
 			)
 		}
@@ -243,4 +254,22 @@ func (d *devOrchestrator) forceRemoveContainers(
 			fmt.Printf(`error removing container "%s": %s`, containerID, err)
 		}
 	}
+}
+
+func prefixingWriter(
+	targetName string,
+	containerName string,
+	output io.Writer,
+) io.Writer {
+	pipeReader, pipeWriter := io.Pipe()
+	scanner := bufio.NewScanner(pipeReader)
+	scanner.Split(bufio.ScanLines)
+	go func() {
+		for scanner.Scan() {
+			fmt.Fprintf(output, "[%s-%s] ", targetName, containerName)
+			output.Write(scanner.Bytes())
+			fmt.Fprint(output, "\n")
+		}
+	}()
+	return pipeWriter
 }
