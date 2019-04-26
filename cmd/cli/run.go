@@ -24,7 +24,10 @@ func run(c *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "error building Docker client")
 	}
-	executor := drakecli.NewExecutor(drakedocker.NewOrchestrator(dockerClient))
+	executor := drakecli.NewExecutor(
+		dockerClient,
+		drakedocker.NewOrchestrator(dockerClient),
+	)
 	executePipelines := c.Bool(flagPipeline)
 	if executePipelines {
 		if len(c.Args()) == 0 {
