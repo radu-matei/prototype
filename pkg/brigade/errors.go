@@ -13,3 +13,11 @@ func (m *multiError) Error() string {
 	}
 	return str
 }
+
+type timedOutError struct {
+	podName string
+}
+
+func (t *timedOutError) Error() string {
+	return fmt.Sprintf("timed out waiting for pod \"%s\" to complete", t.podName)
+}
