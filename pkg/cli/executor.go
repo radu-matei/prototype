@@ -17,6 +17,7 @@ type Executor interface {
 		sourcePath string,
 		targetNames []string,
 		debugOnly bool,
+		concurrencyEnabled bool,
 	) error
 	ExecutePipelines(
 		ctx context.Context,
@@ -24,6 +25,7 @@ type Executor interface {
 		sourcePath string,
 		pipelineNames []string,
 		debugOnly bool,
+		concurrencyEnabled bool,
 	) error
 }
 
@@ -46,6 +48,7 @@ func (e *executor) ExecuteTargets(
 	sourcePath string,
 	targetNames []string,
 	debugOnly bool,
+	concurrencyEnabled bool,
 ) error {
 	config, err := config.NewConfigFromFile(configFile)
 	if err != nil {
@@ -60,16 +63,48 @@ func (e *executor) ExecuteTargets(
 		return nil
 	}
 	executionName := e.namer.NameSep("-")
+	errCh := make(chan error)
+	var runningTargets int
 	for _, target := range targets {
 		targetExecutionName := fmt.Sprintf("%s-%s", executionName, target.Name())
-		if err := e.orchestrator.ExecuteTarget(
+		runningTargets++
+		go e.orchestrator.ExecuteTarget(
 			ctx,
 			targetExecutionName,
 			sourcePath,
 			target,
-		); err != nil {
-			return err
+			errCh,
+		)
+		if !concurrencyEnabled {
+			// If concurrency isn't enabled, wait for a potential error. If it's nil,
+			// move on. If it's not, return the error.
+			if err := <-errCh; err != nil {
+				return err
+			}
+			runningTargets--
 		}
+	}
+	// If concurrency isn't enabled and we haven't already encountered an error,
+	// then we're not going to. We're done!
+	if !concurrencyEnabled {
+		return nil
+	}
+	// Wait for all the targets to finish.
+	errs := []error{}
+	for err := range errCh {
+		if err != nil {
+			errs = append(errs, err)
+		}
+		runningTargets--
+		if runningTargets == 0 {
+			break
+		}
+	}
+	if len(errs) > 1 {
+		return &multiError{errs: errs}
+	}
+	if len(errs) == 1 {
+		return errs[0]
 	}
 	return nil
 }
@@ -80,6 +115,7 @@ func (e *executor) ExecutePipelines(
 	sourcePath string,
 	pipelineNames []string,
 	debugOnly bool,
+	concurrencyEnabled bool,
 ) error {
 	config, err := config.NewConfigFromFile(configFile)
 	if err != nil {
@@ -105,21 +141,52 @@ func (e *executor) ExecutePipelines(
 	}
 	executionName := e.namer.NameSep("-")
 	for _, pipeline := range pipelines {
+		fmt.Printf("====> executing pipeline \"%s\" <====\n", pipeline.Name())
 		pipelineExecutionName :=
 			fmt.Sprintf("%s-%s", executionName, pipeline.Name())
 		for i, stageTargets := range pipeline.Targets() {
+			fmt.Printf("====> executing stage %d <====\n", i)
 			stageExecutionName :=
 				fmt.Sprintf("%s-stage%d", pipelineExecutionName, i)
+			errCh := make(chan error)
+			var runningTargets int
 			for _, target := range stageTargets {
 				targetExecutionName :=
 					fmt.Sprintf("%s-%s", stageExecutionName, target.Name())
-				if err := e.orchestrator.ExecuteTarget(
+				runningTargets++
+				go e.orchestrator.ExecuteTarget(
 					ctx,
 					targetExecutionName,
 					sourcePath,
 					target,
-				); err != nil {
-					return err
+					errCh,
+				)
+				// If concurrency isn't enabled, wait for a potential error. If it's
+				// nil, move on. If it's not, return the error.
+				if !concurrencyEnabled {
+					if err := <-errCh; err != nil {
+						return err
+					}
+					runningTargets--
+				}
+			}
+			// If concurrency is enabled, wait for all the targets to finish.
+			if concurrencyEnabled {
+				errs := []error{}
+				for err := range errCh {
+					if err != nil {
+						errs = append(errs, err)
+					}
+					runningTargets--
+					if runningTargets == 0 {
+						break
+					}
+				}
+				if len(errs) > 1 {
+					return &multiError{errs: errs}
+				}
+				if len(errs) == 1 {
+					return errs[0]
 				}
 			}
 		}

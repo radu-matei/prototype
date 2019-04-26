@@ -2,7 +2,6 @@ package brigade
 
 import (
 	"log"
-	"sync"
 
 	"github.com/lovethedrake/prototype/pkg/config"
 )
@@ -16,7 +15,7 @@ func (e *executor) runStage(
 ) error {
 	log.Printf("executing pipeline \"%s\" stage %d", pipelineName, stageIndex)
 	errCh := make(chan error)
-	wg := &sync.WaitGroup{}
+	var runningTargets int
 	for _, target := range targets {
 		log.Printf(
 			"executing pipeline \"%s\" stage %d target \"%s\"",
@@ -24,24 +23,26 @@ func (e *executor) runStage(
 			stageIndex,
 			target.Name(),
 		)
-		wg.Add(1)
+		runningTargets++
 		go e.runTargetPod(
 			project,
 			event,
 			pipelineName,
 			stageIndex,
 			target,
-			wg,
 			errCh,
 		)
 	}
-	go func() {
-		wg.Wait()
-		close(errCh)
-	}()
+	// Wait for all the targets to finish.
 	errs := []error{}
 	for err := range errCh {
-		errs = append(errs, err)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		runningTargets--
+		if runningTargets == 0 {
+			break
+		}
 	}
 	if len(errs) > 1 {
 		return &multiError{errs: errs}

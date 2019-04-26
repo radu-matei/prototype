@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/lovethedrake/prototype/pkg/config"
@@ -28,26 +27,43 @@ func (e *executor) runTargetPod(
 	pipelineName string,
 	stage int,
 	target config.Target,
-	wg *sync.WaitGroup,
 	errCh chan<- error,
 ) {
-	defer wg.Done()
 	if err := notifyCheckStart(event, target.Name(), target.Name()); err != nil {
 		errCh <- err
 		return
 	}
+	err := e.runTargetPodInternal(
+		project,
+		event,
+		pipelineName,
+		stage,
+		target,
+	)
 	conclusion := "failure"
-	defer func() {
-		if err := notifyCheckCompleted(
-			event,
-			target.Name(),
-			target.Name(),
-			conclusion,
-		); err != nil {
-			log.Printf("error sending notification to github: %s", err)
-		}
-	}()
+	if err == nil {
+		conclusion = "success"
+	} else if _, ok := err.(*timedOutError); ok {
+		conclusion = "timed_out"
+	}
+	if nerr := notifyCheckCompleted(
+		event,
+		target.Name(),
+		target.Name(),
+		conclusion,
+	); nerr != nil {
+		log.Printf("error sending notification to github: %s", nerr)
+	}
+	errCh <- err
+}
 
+func (e *executor) runTargetPodInternal(
+	project Project,
+	event Event,
+	pipelineName string,
+	stage int,
+	target config.Target,
+) error {
 	jobName := fmt.Sprintf("%s-stage%d-%s", pipelineName, stage, target.Name())
 	podName := fmt.Sprintf("%s-%s", jobName, event.BuildID)
 	pod := &v1.Pod{
@@ -93,8 +109,7 @@ func (e *executor) runTargetPod(
 	for i, container := range containers {
 		targetPodContainer, err := getTargetPodContainer(container)
 		if err != nil {
-			errCh <- err
-			return
+			return err
 		}
 		// We'll treat all but the last container as sidecars. i.e. The last
 		// container in the target should be container 0 in the pod spec.
@@ -112,8 +127,7 @@ func (e *executor) runTargetPod(
 
 	_, err := e.kubeClient.CoreV1().Pods(project.Kubernetes.Namespace).Create(pod)
 	if err != nil {
-		errCh <- errors.Wrapf(err, "error creating pod \"%s\"", podName)
-		return
+		return errors.Wrapf(err, "error creating pod \"%s\"", podName)
 	}
 
 	podsWatcher, err :=
@@ -126,8 +140,7 @@ func (e *executor) runTargetPod(
 			},
 		)
 	if err != nil {
-		errCh <- err
-		return
+		return err
 	}
 
 	// Timeout
@@ -140,32 +153,24 @@ func (e *executor) runTargetPod(
 		case event := <-podsWatcher.ResultChan():
 			pod, ok := event.Object.(*v1.Pod)
 			if !ok {
-				errCh <- errors.Errorf(
+				return errors.Errorf(
 					"received unexpected object when watching pod \"%s\" for completion",
 					podName,
 				)
-				return
 			}
 			for _, containerStatus := range pod.Status.ContainerStatuses {
 				if containerStatus.Name == mainContainerName {
 					if containerStatus.State.Terminated != nil {
 						if containerStatus.State.Terminated.Reason == "Completed" {
-							conclusion = "success"
-							return
+							return nil
 						}
-						errCh <- errors.Errorf("pod \"%s\" failed", podName)
-						return
+						return errors.Errorf("pod \"%s\" failed", podName)
 					}
 					break
 				}
 			}
 		case <-timer.C:
-			errCh <- errors.Errorf(
-				"timed out waiting for pod \"%s\" to complete",
-				podName,
-			)
-			conclusion = "timed_out"
-			return
+			return &timedOutError{podName: podName}
 		}
 	}
 }

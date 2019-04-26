@@ -37,13 +37,17 @@ func main() {
 					Name:  flagsDebug,
 					Usage: "display debug info",
 				},
+				cli.BoolFlag{
+					Name:  flagsConcurrently,
+					Usage: "enable concurrent target execution",
+				},
 			},
 			Action: run,
 		},
 	}
 	fmt.Println()
 	if err := app.Run(os.Args); err != nil {
-		fmt.Printf("%s\n\n", err)
+		fmt.Printf("\n%s\n\n", err)
 		os.Exit(1)
 	}
 	fmt.Println()
