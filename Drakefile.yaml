@@ -25,7 +25,7 @@ baseDindContainer: &baseDindContainer
 
 baseDemoContainer: &baseDemoContainer
   name: demo
-  image: debian:jessie
+  image: debian:stretch
 
 targets:
 
@@ -36,9 +36,14 @@ targets:
   foo:
     containers:
     - <<: *baseDemoContainer
-      command: "false"
+      command: echo foo
 
   bar:
+    containers:
+    - <<: *baseDemoContainer
+      command: echo bar
+
+  fail:
     containers:
     - <<: *baseDemoContainer
       command: "false"

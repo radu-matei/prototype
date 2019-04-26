@@ -2,8 +2,13 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 
+	dockerTypes "github.com/docker/docker/api/types"
+	docker "github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/lovethedrake/prototype/pkg/config"
 	"github.com/lovethedrake/prototype/pkg/orchestration"
 	"github.com/technosophos/moniker"
@@ -32,13 +37,18 @@ type Executor interface {
 type executor struct {
 	namer        moniker.Namer
 	orchestrator orchestration.Orchestrator
+	dockerClient *docker.Client
 }
 
 // NewExecutor returns an executor suitable for use with local development
-func NewExecutor(orchestrator orchestration.Orchestrator) Executor {
+func NewExecutor(
+	dockerClient *docker.Client,
+	orchestrator orchestration.Orchestrator,
+) Executor {
 	return &executor{
 		namer:        moniker.New(),
 		orchestrator: orchestrator,
+		dockerClient: dockerClient,
 	}
 }
 
@@ -62,6 +72,37 @@ func (e *executor) ExecuteTargets(
 		fmt.Printf("would execute targets: %s\n", targetNames)
 		return nil
 	}
+
+	imageNames := map[string]struct{}{}
+	for _, target := range targets {
+		for _, container := range target.Containers() {
+			imageNames[container.Image()] = struct{}{}
+		}
+	}
+	for imageName := range imageNames {
+		fmt.Printf("~~~~> pulling image \"%s\" <~~~~\n", imageName)
+		reader, err := e.dockerClient.ImagePull(
+			ctx,
+			imageName,
+			dockerTypes.ImagePullOptions{},
+		)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		dec := json.NewDecoder(reader)
+		for {
+			var message jsonmessage.JSONMessage
+			if err := dec.Decode(&message); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+			fmt.Println(message.Status)
+		}
+	}
+
 	executionName := e.namer.NameSep("-")
 	errCh := make(chan error)
 	var runningTargets int
@@ -139,6 +180,41 @@ func (e *executor) ExecutePipelines(
 		}
 		return nil
 	}
+
+	imageNames := map[string]struct{}{}
+	for _, pipeline := range pipelines {
+		for _, stageTargets := range pipeline.Targets() {
+			for _, target := range stageTargets {
+				for _, container := range target.Containers() {
+					imageNames[container.Image()] = struct{}{}
+				}
+			}
+		}
+	}
+	for imageName := range imageNames {
+		fmt.Printf("~~~~> pulling image \"%s\" <~~~~\n", imageName)
+		reader, err := e.dockerClient.ImagePull(
+			ctx,
+			imageName,
+			dockerTypes.ImagePullOptions{},
+		)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		dec := json.NewDecoder(reader)
+		for {
+			var message jsonmessage.JSONMessage
+			if err := dec.Decode(&message); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+			fmt.Println(message.Status)
+		}
+	}
+
 	executionName := e.namer.NameSep("-")
 	for _, pipeline := range pipelines {
 		fmt.Printf("====> executing pipeline \"%s\" <====\n", pipeline.Name())
