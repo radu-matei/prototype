@@ -12,5 +12,6 @@ type Orchestrator interface {
 		executionName string,
 		sourcePath string,
 		target config.Target,
-	) error
+		errCh chan<- error,
+	)
 }

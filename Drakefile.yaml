@@ -36,12 +36,12 @@ targets:
   foo:
     containers:
     - <<: *baseDemoContainer
-      command: echo foo
+      command: "false"
 
   bar:
     containers:
     - <<: *baseDemoContainer
-      command: echo bar
+      command: "false"
 
   # This target demonstrates two containers networked together.
   # This doesn't work in Brigade / k8s yet because job / pod completion is based

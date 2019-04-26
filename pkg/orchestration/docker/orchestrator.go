@@ -32,10 +32,15 @@ func (d *devOrchestrator) ExecuteTarget(
 	targetExecutionName string,
 	sourcePath string,
 	target config.Target,
-) error {
+	errCh chan<- error,
+) {
 	if len(target.Containers()) == 0 {
-		return nil
+		errCh <- nil
+		return
 	}
+
+	fmt.Printf("----> executing target \"%s\" <----\n", target.Name())
+
 	containerIDs := make([]string, len(target.Containers()))
 	// Ensure cleanup of all containers
 	defer d.forceRemoveContainers(ctx, containerIDs...)
@@ -53,12 +58,13 @@ func (d *devOrchestrator) ExecuteTarget(
 			container,
 		)
 		if err != nil {
-			return errors.Wrapf(
+			errCh <- errors.Wrapf(
 				err,
 				"error creating container \"%s\" for target \"%s\"",
 				container.Name(),
 				target.Name(),
 			)
+			return
 		}
 		containerIDs[i] = containerID
 		if i == 0 {
@@ -74,12 +80,13 @@ func (d *devOrchestrator) ExecuteTarget(
 				containerID,
 				dockerTypes.ContainerStartOptions{},
 			); err != nil {
-				return errors.Wrapf(
+				errCh <- errors.Wrapf(
 					err,
 					"error starting container \"%s\" for target \"%s\"",
 					container.Name(),
 					target.Name(),
 				)
+				return
 			}
 		}
 	}
@@ -100,12 +107,13 @@ func (d *devOrchestrator) ExecuteTarget(
 		},
 	)
 	if err != nil {
-		return errors.Wrapf(
+		errCh <- errors.Wrapf(
 			err,
 			"error attaching to container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
 			target.Name(),
 		)
+		return
 	}
 	// Concurrently deal with the output from the last container
 	go func() {
@@ -145,31 +153,34 @@ func (d *devOrchestrator) ExecuteTarget(
 		lastContainerID,
 		dockerTypes.ContainerStartOptions{},
 	); err != nil {
-		return errors.Wrapf(
+		errCh <- errors.Wrapf(
 			err,
 			"error starting container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
 			target.Name(),
 		)
+		return
 	}
 	select {
 	case containerWaitResp := <-containerWaitRespCh:
 		if containerWaitResp.StatusCode != 0 {
 			// The command executed inside the container exited non-zero
-			return &orchestration.ErrStepExitedNonZero{
+			errCh <- &orchestration.ErrTargetExitedNonZero{
 				Target:   target.Name(),
 				ExitCode: containerWaitResp.StatusCode,
 			}
+			return
 		}
 	case err := <-containerWaitErrCh:
-		return errors.Wrapf(
+		errCh <- errors.Wrapf(
 			err,
 			"error waiting for completion of container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
 			target.Name(),
 		)
+		return
 	}
-	return nil
+	errCh <- nil
 }
 
 // createContainer creates a container for the given execution and target,
@@ -267,7 +278,7 @@ func prefixingWriter(
 	go func() {
 		for scanner.Scan() {
 			fmt.Fprintf(output, "[%s-%s] ", targetName, containerName)
-			output.Write(scanner.Bytes())
+			output.Write(scanner.Bytes()) // nolint: errcheck
 			fmt.Fprint(output, "\n")
 		}
 	}()
