@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/lovethedrake/prototype/pkg/config"
@@ -28,10 +27,8 @@ func (e *executor) runTargetPod(
 	pipelineName string,
 	stage int,
 	target config.Target,
-	wg *sync.WaitGroup,
 	errCh chan<- error,
 ) {
-	defer wg.Done()
 	if err := notifyCheckStart(event, target.Name(), target.Name()); err != nil {
 		errCh <- err
 		return
@@ -151,6 +148,7 @@ func (e *executor) runTargetPod(
 					if containerStatus.State.Terminated != nil {
 						if containerStatus.State.Terminated.Reason == "Completed" {
 							conclusion = "success"
+							errCh <- nil
 							return
 						}
 						errCh <- errors.Errorf("pod \"%s\" failed", podName)

@@ -2,7 +2,6 @@ package brigade
 
 import (
 	"log"
-	"sync"
 
 	"github.com/lovethedrake/prototype/pkg/config"
 )
@@ -11,10 +10,8 @@ func (e *executor) runPipeline(
 	project Project,
 	event Event,
 	pipeline config.Pipeline,
-	wg *sync.WaitGroup,
 	errCh chan<- error,
 ) {
-	defer wg.Done()
 	log.Printf("executing pipeline \"%s\"", pipeline.Name())
 	log.Printf("creating shared storage for pipeline \"%s\"", pipeline.Name())
 	if err := e.createSrcPVC(project, event, pipeline.Name()); err != nil {
@@ -58,4 +55,5 @@ func (e *executor) runPipeline(
 			return
 		}
 	}
+	errCh <- nil
 }

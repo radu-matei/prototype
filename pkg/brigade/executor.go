@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"regexp"
-	"sync"
 
 	"github.com/lovethedrake/prototype/pkg/config"
 	"k8s.io/client-go/kubernetes"
@@ -90,22 +89,25 @@ func (e *executor) ExecuteBuild(
 	}
 	pipelines := config.GetAllPipelines()
 	errCh := make(chan error)
-	wg := &sync.WaitGroup{}
+	var runningPipelines int
 	for _, pipeline := range pipelines {
 		if meetsCriteria, err := pipeline.Matches(branch, tag); err != nil {
 			return err
 		} else if meetsCriteria {
-			wg.Add(1)
-			go e.runPipeline(project, event, pipeline, wg, errCh)
+			runningPipelines++
+			go e.runPipeline(project, event, pipeline, errCh)
 		}
 	}
-	go func() {
-		wg.Wait()
-		close(errCh)
-	}()
+	// Wait for all the pipelines to finish.
 	errs := []error{}
 	for err := range errCh {
-		errs = append(errs, err)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		runningPipelines--
+		if runningPipelines == 0 {
+			break
+		}
 	}
 	if len(errs) > 1 {
 		return &multiError{errs: errs}
