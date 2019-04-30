@@ -34,31 +34,36 @@ func (d *devOrchestrator) ExecuteTarget(
 	target config.Target,
 	errCh chan<- error,
 ) {
+	var err error
+	containerIDs := make([]string, len(target.Containers()))
+
+	// Ensure cleanup of all containers
+	defer func() {
+		d.forceRemoveContainers(context.Background(), containerIDs...)
+		errCh <- err
+	}()
+
 	if len(target.Containers()) == 0 {
-		errCh <- nil
 		return
 	}
 
 	fmt.Printf("----> executing target \"%s\" <----\n", target.Name())
 
-	containerIDs := make([]string, len(target.Containers()))
-	// Ensure cleanup of all containers
-	defer d.forceRemoveContainers(ctx, containerIDs...)
 	var networkContainerID, lastContainerID string
 	var lastContainer config.Container
 	// Create and start all containers-- except the last one-- that one we will
 	// only create, then we will set ourselves up to capture its output and exit
 	// code before we start it.
 	for i, container := range target.Containers() {
-		containerID, err := d.createContainer(
+		var containerID string
+		if containerID, err = d.createContainer(
 			ctx,
 			targetExecutionName,
 			sourcePath,
 			networkContainerID,
 			container,
-		)
-		if err != nil {
-			errCh <- errors.Wrapf(
+		); err != nil {
+			err = errors.Wrapf(
 				err,
 				"error creating container \"%s\" for target \"%s\"",
 				container.Name(),
@@ -75,12 +80,12 @@ func (d *devOrchestrator) ExecuteTarget(
 			lastContainer = container
 		} else {
 			// Start all but the last container
-			if err := d.dockerClient.ContainerStart(
+			if err = d.dockerClient.ContainerStart(
 				ctx,
 				containerID,
 				dockerTypes.ContainerStartOptions{},
 			); err != nil {
-				errCh <- errors.Wrapf(
+				err = errors.Wrapf(
 					err,
 					"error starting container \"%s\" for target \"%s\"",
 					container.Name(),
@@ -97,7 +102,8 @@ func (d *devOrchestrator) ExecuteTarget(
 		dockerContainer.WaitConditionNextExit,
 	)
 	// Attach to the last container to see its output
-	containerAttachResp, err := d.dockerClient.ContainerAttach(
+	var containerAttachResp dockerTypes.HijackedResponse
+	if containerAttachResp, err = d.dockerClient.ContainerAttach(
 		ctx,
 		lastContainerID,
 		dockerTypes.ContainerAttachOptions{
@@ -105,9 +111,8 @@ func (d *devOrchestrator) ExecuteTarget(
 			Stdout: true,
 			Stderr: true,
 		},
-	)
-	if err != nil {
-		errCh <- errors.Wrapf(
+	); err != nil {
+		err = errors.Wrapf(
 			err,
 			"error attaching to container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
@@ -148,12 +153,12 @@ func (d *devOrchestrator) ExecuteTarget(
 		}
 	}()
 	// Finally, start the last container
-	if err := d.dockerClient.ContainerStart(
+	if err = d.dockerClient.ContainerStart(
 		ctx,
 		lastContainerID,
 		dockerTypes.ContainerStartOptions{},
 	); err != nil {
-		errCh <- errors.Wrapf(
+		err = errors.Wrapf(
 			err,
 			"error starting container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
@@ -165,22 +170,22 @@ func (d *devOrchestrator) ExecuteTarget(
 	case containerWaitResp := <-containerWaitRespCh:
 		if containerWaitResp.StatusCode != 0 {
 			// The command executed inside the container exited non-zero
-			errCh <- &orchestration.ErrTargetExitedNonZero{
+			err = &orchestration.ErrTargetExitedNonZero{
 				Target:   target.Name(),
 				ExitCode: containerWaitResp.StatusCode,
 			}
 			return
 		}
-	case err := <-containerWaitErrCh:
-		errCh <- errors.Wrapf(
+	case err = <-containerWaitErrCh:
+		err = errors.Wrapf(
 			err,
 			"error waiting for completion of container \"%s\" for target \"%s\"",
 			lastContainer.Name(),
 			target.Name(),
 		)
 		return
+	case <-ctx.Done():
 	}
-	errCh <- nil
 }
 
 // createContainer creates a container for the given execution and target,
