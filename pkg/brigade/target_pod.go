@@ -1,6 +1,7 @@
 package brigade
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/watch"
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
@@ -22,6 +24,7 @@ const (
 )
 
 func (e *executor) runTargetPod(
+	ctx context.Context,
 	project Project,
 	event Event,
 	pipelineName string,
@@ -29,43 +32,39 @@ func (e *executor) runTargetPod(
 	target config.Target,
 	errCh chan<- error,
 ) {
-	if err := notifyCheckStart(event, target.Name(), target.Name()); err != nil {
+	var err error
+	if err = notifyCheckStart(event, target.Name(), target.Name()); err != nil {
 		errCh <- err
 		return
 	}
-	err := e.runTargetPodInternal(
-		project,
-		event,
-		pipelineName,
-		stage,
-		target,
-	)
-	conclusion := "failure"
-	if err == nil {
-		conclusion = "success"
-	} else if _, ok := err.(*timedOutError); ok {
-		conclusion = "timed_out"
-	}
-	if nerr := notifyCheckCompleted(
-		event,
-		target.Name(),
-		target.Name(),
-		conclusion,
-	); nerr != nil {
-		log.Printf("error sending notification to github: %s", nerr)
-	}
-	errCh <- err
-}
 
-func (e *executor) runTargetPodInternal(
-	project Project,
-	event Event,
-	pipelineName string,
-	stage int,
-	target config.Target,
-) error {
 	jobName := fmt.Sprintf("%s-stage%d-%s", pipelineName, stage, target.Name())
 	podName := fmt.Sprintf("%s-%s", jobName, event.BuildID)
+
+	// Ensure notification
+	defer func() {
+		conclusion := "failure"
+		select {
+		case <-ctx.Done():
+			conclusion = "cancelled"
+		default:
+			if err == nil {
+				conclusion = "success"
+			} else if _, ok := err.(*timedOutError); ok {
+				conclusion = "timed_out"
+			}
+		}
+		if nerr := notifyCheckCompleted(
+			event,
+			target.Name(),
+			target.Name(),
+			conclusion,
+		); nerr != nil {
+			log.Printf("error sending notification to github: %s", nerr)
+		}
+		errCh <- err
+	}()
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
@@ -107,9 +106,10 @@ func (e *executor) runTargetPodInternal(
 	var mainContainerName string
 	containers := target.Containers()
 	for i, container := range containers {
-		targetPodContainer, err := getTargetPodContainer(container)
+		var targetPodContainer v1.Container
+		targetPodContainer, err = getTargetPodContainer(container)
 		if err != nil {
-			return err
+			return
 		}
 		// We'll treat all but the last container as sidecars. i.e. The last
 		// container in the target should be container 0 in the pod spec.
@@ -125,12 +125,15 @@ func (e *executor) runTargetPodInternal(
 		)
 	}
 
-	_, err := e.kubeClient.CoreV1().Pods(project.Kubernetes.Namespace).Create(pod)
-	if err != nil {
-		return errors.Wrapf(err, "error creating pod \"%s\"", podName)
+	if _, err = e.kubeClient.CoreV1().Pods(
+		project.Kubernetes.Namespace,
+	).Create(pod); err != nil {
+		err = errors.Wrapf(err, "error creating pod \"%s\"", podName)
+		return
 	}
 
-	podsWatcher, err :=
+	var podsWatcher watch.Interface
+	podsWatcher, err =
 		e.kubeClient.CoreV1().Pods(project.Kubernetes.Namespace).Watch(
 			metav1.ListOptions{
 				FieldSelector: fields.OneTermEqualSelector(
@@ -140,7 +143,7 @@ func (e *executor) runTargetPodInternal(
 			},
 		)
 	if err != nil {
-		return err
+		return
 	}
 
 	// Timeout
@@ -153,24 +156,29 @@ func (e *executor) runTargetPodInternal(
 		case event := <-podsWatcher.ResultChan():
 			pod, ok := event.Object.(*v1.Pod)
 			if !ok {
-				return errors.Errorf(
+				err = errors.Errorf(
 					"received unexpected object when watching pod \"%s\" for completion",
 					podName,
 				)
+				return
 			}
 			for _, containerStatus := range pod.Status.ContainerStatuses {
 				if containerStatus.Name == mainContainerName {
 					if containerStatus.State.Terminated != nil {
 						if containerStatus.State.Terminated.Reason == "Completed" {
-							return nil
+							return
 						}
-						return errors.Errorf("pod \"%s\" failed", podName)
+						err = errors.Errorf("pod \"%s\" failed", podName)
+						return
 					}
 					break
 				}
 			}
 		case <-timer.C:
-			return &timedOutError{podName: podName}
+			err = &timedOutError{podName: podName}
+			return
+		case <-ctx.Done():
+			return
 		}
 	}
 }
