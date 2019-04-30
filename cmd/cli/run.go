@@ -1,17 +1,20 @@
 package main
 
 import (
-	"context"
+	"os"
 	"path/filepath"
 
 	docker "github.com/docker/docker/client"
 	drakecli "github.com/lovethedrake/prototype/pkg/cli"
 	drakedocker "github.com/lovethedrake/prototype/pkg/orchestration/docker"
+	"github.com/lovethedrake/prototype/pkg/signals"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
 func run(c *cli.Context) error {
+	// This context will automatically be canceled on SIGINT or SIGTERM.
+	ctx := signals.Context()
 	configFile := c.GlobalString(flagFile)
 	debugOnly := c.Bool(flagDebug)
 	concurrencyEnabled := c.Bool(flagConcurrently)
@@ -34,10 +37,8 @@ func run(c *cli.Context) error {
 			return errors.New("no pipelines were specified for execution")
 		}
 		// TODO: Should pass the stream that we want output to go to-- stdout
-		// TODO: Make this context cancelable; probably need to do some signal
-		// handling
 		err = executor.ExecutePipelines(
-			context.Background(),
+			ctx,
 			configFile,
 			sourcePath,
 			c.Args(),
@@ -49,16 +50,19 @@ func run(c *cli.Context) error {
 			return errors.New("no targets were specified for execution")
 		}
 		// TODO: Should pass the stream that we want output to go to-- stdout
-		// TODO: Make this context cancelable; probably need to do some signal
-		// handling
 		err = executor.ExecuteTargets(
-			context.Background(),
+			ctx,
 			configFile,
 			sourcePath,
 			c.Args(),
 			debugOnly,
 			concurrencyEnabled,
 		)
+	}
+	select {
+	case <-ctx.Done():
+		os.Exit(1)
+	default:
 	}
 	return err
 }
