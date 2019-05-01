@@ -1,6 +1,7 @@
 package brigade
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ import (
 )
 
 func (e *executor) runSourceClonePod(
+	ctx context.Context,
 	project Project,
 	event Event,
 	pipelineName string,
@@ -228,6 +230,8 @@ func (e *executor) runSourceClonePod(
 			}
 		case <-timer.C:
 			return errors.New("timed out waiting for source clone pod to complete")
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }

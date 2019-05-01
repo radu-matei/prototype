@@ -1,12 +1,14 @@
 package brigade
 
 import (
+	"context"
 	"log"
 
 	"github.com/lovethedrake/prototype/pkg/config"
 )
 
 func (e *executor) runStage(
+	ctx context.Context,
 	project Project,
 	event Event,
 	pipelineName string,
@@ -25,6 +27,7 @@ func (e *executor) runStage(
 		)
 		runningTargets++
 		go e.runTargetPod(
+			ctx,
 			project,
 			event,
 			pipelineName,

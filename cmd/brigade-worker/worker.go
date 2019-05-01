@@ -1,10 +1,11 @@
 package main
 
 import (
-	"context"
 	"log"
+	"os"
 
 	"github.com/lovethedrake/prototype/pkg/brigade"
+	"github.com/lovethedrake/prototype/pkg/signals"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -32,12 +33,19 @@ func main() {
 
 	executor := brigade.NewExecutor(kubeClient)
 
+	ctx := signals.Context()
 	if err = executor.ExecuteBuild(
-		context.Background(),
+		ctx,
 		project,
 		event,
 	); err != nil {
 		log.Fatal(err)
+	}
+
+	select {
+	case <-ctx.Done():
+		os.Exit(1)
+	default:
 	}
 
 }

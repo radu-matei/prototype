@@ -95,7 +95,7 @@ func (e *executor) ExecuteBuild(
 			return err
 		} else if meetsCriteria {
 			runningPipelines++
-			go e.runPipeline(project, event, pipeline, errCh)
+			go e.runPipeline(ctx, project, event, pipeline, errCh)
 		}
 	}
 	// Wait for all the pipelines to finish.
