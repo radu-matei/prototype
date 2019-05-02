@@ -14,6 +14,7 @@ func (e *executor) runStage(
 	pipelineName string,
 	stageIndex int,
 	targets []config.Target,
+	environment []string,
 ) error {
 	log.Printf("executing pipeline \"%s\" stage %d", pipelineName, stageIndex)
 	errCh := make(chan error)
@@ -33,6 +34,7 @@ func (e *executor) runStage(
 			pipelineName,
 			stageIndex,
 			target,
+			environment,
 			errCh,
 		)
 	}

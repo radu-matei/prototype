@@ -15,6 +15,7 @@ func (e *executor) runPipeline(
 	project Project,
 	event Event,
 	pipeline config.Pipeline,
+	environment []string,
 	errCh chan<- error,
 ) {
 	log.Printf("executing pipeline \"%s\"", pipeline.Name())
@@ -102,6 +103,7 @@ func (e *executor) runPipeline(
 			pipeline.Name(),
 			stageIndex,
 			stageTargets,
+			environment,
 		); err != nil {
 			return
 		}
