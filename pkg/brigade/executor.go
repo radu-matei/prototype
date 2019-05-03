@@ -88,6 +88,17 @@ func (e *executor) ExecuteBuild(
 	if err != nil {
 		return err
 	}
+
+	// Create build secret
+	if err := e.createBuildSecret(project, event); err != nil {
+		return err
+	}
+	defer func() {
+		if err := e.destroyBuildSecret(project, event); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	pipelines := config.GetAllPipelines()
 	errCh := make(chan error)
 	environment := []string{

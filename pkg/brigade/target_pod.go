@@ -108,7 +108,12 @@ func (e *executor) runTargetPod(
 	containers := target.Containers()
 	for i, container := range containers {
 		var targetPodContainer v1.Container
-		targetPodContainer, err = getTargetPodContainer(container, environment)
+		targetPodContainer, err = getTargetPodContainer(
+			project,
+			event,
+			container,
+			environment,
+		)
 		if err != nil {
 			return
 		}
@@ -185,6 +190,8 @@ func (e *executor) runTargetPod(
 }
 
 func getTargetPodContainer(
+	project Project,
+	event Event,
 	container config.Container,
 	environment []string,
 ) (v1.Container, error) {
@@ -208,6 +215,22 @@ func getTargetPodContainer(
 		VolumeMounts: []v1.VolumeMount{},
 		Stdin:        container.TTY(),
 		TTY:          container.TTY(),
+	}
+	for k := range project.Secrets {
+		c.Env = append(
+			c.Env,
+			v1.EnvVar{
+				Name: k,
+				ValueFrom: &v1.EnvVarSource{
+					SecretKeyRef: &v1.SecretKeySelector{
+						LocalObjectReference: v1.LocalObjectReference{
+							Name: strings.ToLower(event.BuildID),
+						},
+						Key: k,
+					},
+				},
+			},
+		)
 	}
 	for _, kv := range env {
 		kvTokens := strings.SplitN(kv, "=", 2)
