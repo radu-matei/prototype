@@ -2,7 +2,7 @@
 
 # AVOID INVOKING THIS SCRIPT DIRECTLY -- USE `drake run publish-brigade-worker-dind`
 
-set -euox pipefail
+set -euo pipefail
 
 if [ "$DRAKE_TAG" == "" ]; then
   rel_version=edge
@@ -23,6 +23,8 @@ trap dumpDockerdLogs EXIT
 dockerd-entrypoint.sh &> dockerd.logs &
 
 sleep 5
+
+docker login -u krancour -p $DOCKER_PASSWORD
 
 base_image_name=lovethedrake/prototype-brigade-worker
 
