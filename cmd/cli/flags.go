@@ -9,4 +9,6 @@ const (
 	flagsPipeline     = "pipeline, p"
 	flagConcurrently  = "concurrently"
 	flagsConcurrently = "concurrently, c"
+	flagSecretsFile   = "secrets"
+	flagsSecretsFile  = "secrets, s"
 )

@@ -30,6 +30,7 @@ func NewOrchestrator(dockerClient *docker.Client) orchestration.Orchestrator {
 
 func (d *devOrchestrator) ExecuteTarget(
 	ctx context.Context,
+	secrets []string,
 	targetExecutionName string,
 	sourcePath string,
 	target config.Target,
@@ -59,6 +60,7 @@ func (d *devOrchestrator) ExecuteTarget(
 		var containerID string
 		if containerID, err = d.createContainer(
 			ctx,
+			secrets,
 			targetExecutionName,
 			sourcePath,
 			networkContainerID,
@@ -195,6 +197,7 @@ func (d *devOrchestrator) ExecuteTarget(
 // does not start the container.
 func (d *devOrchestrator) createContainer(
 	ctx context.Context,
+	secrets []string,
 	targetExecutionName string,
 	sourcePath string,
 	networkContainerID string,
@@ -213,13 +216,13 @@ func (d *devOrchestrator) createContainer(
 	if err != nil {
 		return "", err
 	}
-	// TODO: End "we should probably movie this somewhere else"
+	// TODO: End "we should probably move this somewhere else"
 
-	env := []string{
-		fmt.Sprintf("DRAKE_SHA1=%s", ref.Hash()),
-		fmt.Sprintf("DRAKE_BRANCH=%s", ref.Name().Short()),
-		"DRAKE_TAG=",
-	}
+	env := make([]string, len(secrets))
+	copy(env, secrets)
+	env = append(env, fmt.Sprintf("DRAKE_SHA1=%s", ref.Hash()))
+	env = append(env, fmt.Sprintf("DRAKE_BRANCH=%s", ref.Name().Short()))
+	env = append(env, "DRAKE_TAG=")
 
 	containerConfig := &dockerContainer.Config{
 		Image:        container.Image(),

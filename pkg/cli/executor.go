@@ -19,6 +19,7 @@ type Executor interface {
 	ExecuteTargets(
 		ctx context.Context,
 		configFile string,
+		secretsFile string,
 		sourcePath string,
 		targetNames []string,
 		debugOnly bool,
@@ -27,6 +28,7 @@ type Executor interface {
 	ExecutePipelines(
 		ctx context.Context,
 		configFile string,
+		secretsFile string,
 		sourcePath string,
 		pipelineNames []string,
 		debugOnly bool,
@@ -55,12 +57,17 @@ func NewExecutor(
 func (e *executor) ExecuteTargets(
 	ctx context.Context,
 	configFile string,
+	secretsFile string,
 	sourcePath string,
 	targetNames []string,
 	debugOnly bool,
 	concurrencyEnabled bool,
 ) error {
 	config, err := config.NewConfigFromFile(configFile)
+	if err != nil {
+		return err
+	}
+	secrets, err := secretsFromFile(secretsFile)
 	if err != nil {
 		return err
 	}
@@ -111,6 +118,7 @@ func (e *executor) ExecuteTargets(
 		runningTargets++
 		go e.orchestrator.ExecuteTarget(
 			ctx,
+			secrets,
 			targetExecutionName,
 			sourcePath,
 			target,
@@ -153,12 +161,17 @@ func (e *executor) ExecuteTargets(
 func (e *executor) ExecutePipelines(
 	ctx context.Context,
 	configFile string,
+	secretsFile string,
 	sourcePath string,
 	pipelineNames []string,
 	debugOnly bool,
 	concurrencyEnabled bool,
 ) error {
 	config, err := config.NewConfigFromFile(configFile)
+	if err != nil {
+		return err
+	}
+	secrets, err := secretsFromFile(secretsFile)
 	if err != nil {
 		return err
 	}
@@ -232,6 +245,7 @@ func (e *executor) ExecutePipelines(
 				runningTargets++
 				go e.orchestrator.ExecuteTarget(
 					ctx,
+					secrets,
 					targetExecutionName,
 					sourcePath,
 					target,

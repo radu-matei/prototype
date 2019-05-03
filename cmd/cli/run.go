@@ -16,6 +16,7 @@ func run(c *cli.Context) error {
 	// This context will automatically be canceled on SIGINT or SIGTERM.
 	ctx := signals.Context()
 	configFile := c.GlobalString(flagFile)
+	secretsFile := c.String(flagSecretsFile)
 	debugOnly := c.Bool(flagDebug)
 	concurrencyEnabled := c.Bool(flagConcurrently)
 	absConfigFilePath, err := filepath.Abs(configFile)
@@ -40,6 +41,7 @@ func run(c *cli.Context) error {
 		err = executor.ExecutePipelines(
 			ctx,
 			configFile,
+			secretsFile,
 			sourcePath,
 			c.Args(),
 			debugOnly,
@@ -53,6 +55,7 @@ func run(c *cli.Context) error {
 		err = executor.ExecuteTargets(
 			ctx,
 			configFile,
+			secretsFile,
 			sourcePath,
 			c.Args(),
 			debugOnly,

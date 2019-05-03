@@ -41,6 +41,11 @@ func main() {
 					Name:  flagsConcurrently,
 					Usage: "enable concurrent target execution",
 				},
+				cli.StringFlag{
+					Name:  flagsSecretsFile,
+					Usage: "specify the location of drake secrets",
+					Value: "Drakesecrets",
+				},
 			},
 			Action: run,
 		},
