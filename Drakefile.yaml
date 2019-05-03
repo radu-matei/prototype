@@ -9,7 +9,7 @@ baseGoContainer: &baseGoContainer
 
 baseDoodContainer: &baseDoodContainer
   name: dood
-  image: docker:18.09.5-dind
+  image: krancour/dind:18.09.5
   sourceMountPath: /go/src/github.com/lovethedrake/prototype
   workingDirectory: /go/src/github.com/lovethedrake/prototype
   mountDockerSocket: true
@@ -17,10 +17,9 @@ baseDoodContainer: &baseDoodContainer
 
 baseDindContainer: &baseDindContainer
   name: dind
-  image: docker:18.09.5-dind
+  image: krancour/dind:18.09.5
   sourceMountPath: /go/src/github.com/lovethedrake/prototype
   workingDirectory: /go/src/github.com/lovethedrake/prototype
-  tty: true
   privileged: true
 
 baseDemoContainer: &baseDemoContainer
@@ -32,6 +31,14 @@ targets:
 ################################################################################
 # Demo targets                                                                 #
 ################################################################################
+
+  env:
+    containers:
+    - name: env
+      image: debian:stretch
+      sourceMountPath: /go/src/github.com/lovethedrake/prototype
+      workingDirectory: /go/src/github.com/lovethedrake/prototype
+      command: scripts/env.sh
 
   foo:
     containers:
@@ -125,12 +132,12 @@ targets:
   build-brigade-worker-dood:
     containers:
     - <<: *baseDoodContainer
-      command: docker build . -t lovethedrake/prototype-brigade-worker:edge
+      command: scripts/build-brigade-worker-dood.sh
 
   build-brigade-worker-dind:
     containers:
     - <<: *baseDindContainer
-      command: scripts/brigade-worker-build.sh
+      command: scripts/build-brigade-worker-dind.sh
 
   publish-cli:
     containers:
@@ -144,12 +151,12 @@ targets:
   publish-brigade-worker-dood:
     containers:
     - <<: *baseDoodContainer
-      command: docker push lovethedrake/prototype-brigade-worker:edge
+      command: scripts/publish-brigade-worker-dood.sh
 
   publish-brigade-worker-dind:
     containers:
     - <<: *baseDindContainer
-      command: scripts/brigade-worker-publish.sh
+      command: scripts/publish-brigade-worker-dind.sh
 
 ################################################################################
 # Pipelines                                                                    #
@@ -188,10 +195,12 @@ pipelines:
 
   test:
     criteria:
-      only:
+      ignore:
         branches:
-        - /.*/
+        - master
     stages:
+    - targets:
+      - env
     - targets:
       - lint
       - verify-vendored-code
@@ -201,6 +210,27 @@ pipelines:
       - build-cli-darwin-amd64
       - build-cli-windows-amd64
       - build-brigade-worker-dind
+
+  master:
+    criteria:
+      only:
+        branches:
+        - master
+    stages:
+    - targets:
+      - env
+    - targets:
+      - lint
+      - verify-vendored-code
+      - test-unit
+    - targets:
+      - build-cli-linux-amd64
+      - build-cli-darwin-amd64
+      - build-cli-windows-amd64
+      - build-brigade-worker-dind
+    - targets:
+      - publish-brigade-worker-dind
+
 
 ################################################################################
 # Release pipeline                                                             #
@@ -213,9 +243,7 @@ pipelines:
         - /v[0-9]+(\.[0-9]+)*(\-.+)?/
     stages:
     - targets:
-      - lint
-      - verify-vendored-code
-      - test-unit
+      - env
     - targets:
       - build-cli-linux-amd64
       - build-cli-darwin-amd64

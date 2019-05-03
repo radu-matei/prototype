@@ -30,6 +30,7 @@ func (e *executor) runTargetPod(
 	pipelineName string,
 	stage int,
 	target config.Target,
+	environment []string,
 	errCh chan<- error,
 ) {
 	var err error
@@ -107,7 +108,7 @@ func (e *executor) runTargetPod(
 	containers := target.Containers()
 	for i, container := range containers {
 		var targetPodContainer v1.Container
-		targetPodContainer, err = getTargetPodContainer(container)
+		targetPodContainer, err = getTargetPodContainer(container, environment)
 		if err != nil {
 			return
 		}
@@ -183,12 +184,18 @@ func (e *executor) runTargetPod(
 	}
 }
 
-func getTargetPodContainer(container config.Container) (v1.Container, error) {
+func getTargetPodContainer(
+	container config.Container,
+	environment []string,
+) (v1.Container, error) {
 	privileged := container.Privileged()
 	command, err := shellwords.Parse(container.Command())
 	if err != nil {
 		return v1.Container{}, err
 	}
+	env := make([]string, len(environment))
+	copy(env, environment)
+	env = append(env, container.Environment()...)
 	c := v1.Container{
 		Name:            container.Name(),
 		Image:           container.Image(),
@@ -202,7 +209,7 @@ func getTargetPodContainer(container config.Container) (v1.Container, error) {
 		Stdin:        container.TTY(),
 		TTY:          container.TTY(),
 	}
-	for _, kv := range container.Environment() {
+	for _, kv := range env {
 		kvTokens := strings.SplitN(kv, "=", 2)
 		if len(kvTokens) == 2 {
 			c.Env = append(

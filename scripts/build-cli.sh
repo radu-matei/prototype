@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# AVOID INVOKING THIS SCRIPT DIRECTLY -- USE `drake run build-<os>-<arch>`
+# AVOID INVOKING THIS SCRIPT DIRECTLY -- USE `drake run build-cli-<os>-<arch>`
 
 set -euo pipefail
 
@@ -13,9 +13,16 @@ fi
 
 goarch=$2
 
+if [ "$DRAKE_TAG" == "" ]; then
+  rel_version=devel
+else
+  rel_version=$DRAKE_TAG
+fi
+
 git_version=$(git describe --always --abbrev=7 --dirty)
+
 base_package_name=github.com/lovethedrake/prototype
-ldflags="-w -X $base_package_name/pkg/version.commit=$git_version -X $base_package_name/pkg/version.version=devel"
+ldflags="-w -X $base_package_name/pkg/version.version=$rel_version -X $base_package_name/pkg/version.commit=$git_version"
 
 set -x
 

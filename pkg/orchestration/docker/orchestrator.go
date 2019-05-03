@@ -15,6 +15,7 @@ import (
 	"github.com/lovethedrake/prototype/pkg/orchestration"
 	shellwords "github.com/mattn/go-shellwords"
 	"github.com/pkg/errors"
+	"gopkg.in/src-d/go-git.v4"
 )
 
 type devOrchestrator struct {
@@ -199,16 +200,38 @@ func (d *devOrchestrator) createContainer(
 	networkContainerID string,
 	container config.Container,
 ) (string, error) {
+	// TODO: We should probably move this somewhere else
+	workDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	repo, err := git.PlainOpen(workDir)
+	if err != nil {
+		return "", err
+	}
+	ref, err := repo.Head()
+	if err != nil {
+		return "", err
+	}
+	// TODO: End "we should probably movie this somewhere else"
+
+	env := []string{
+		fmt.Sprintf("DRAKE_SHA1=%s", ref.Hash()),
+		fmt.Sprintf("DRAKE_BRANCH=%s", ref.Name().Short()),
+		"DRAKE_TAG=",
+	}
+
 	containerConfig := &dockerContainer.Config{
 		Image:        container.Image(),
-		Env:          container.Environment(),
+		Env:          append(env, container.Environment()...),
 		WorkingDir:   container.WorkingDirectory(),
 		Tty:          container.TTY(),
 		AttachStdout: true,
 		AttachStderr: true,
 	}
 	if container.Command() != "" {
-		cmd, err := shellwords.Parse(container.Command())
+		var cmd []string
+		cmd, err = shellwords.Parse(container.Command())
 		if err != nil {
 			return "", errors.Wrap(err, "error parsing container command")
 		}

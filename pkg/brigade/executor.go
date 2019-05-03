@@ -3,6 +3,7 @@ package brigade
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"regexp"
 
@@ -89,13 +90,18 @@ func (e *executor) ExecuteBuild(
 	}
 	pipelines := config.GetAllPipelines()
 	errCh := make(chan error)
+	environment := []string{
+		fmt.Sprintf("DRAKE_SHA1=%s", event.Revision.Commit),
+		fmt.Sprintf("DRAKE_BRANCH=%s", branch),
+		fmt.Sprintf("DRAKE_TAG=%s", tag),
+	}
 	var runningPipelines int
 	for _, pipeline := range pipelines {
 		if meetsCriteria, err := pipeline.Matches(branch, tag); err != nil {
 			return err
 		} else if meetsCriteria {
 			runningPipelines++
-			go e.runPipeline(ctx, project, event, pipeline, errCh)
+			go e.runPipeline(ctx, project, event, pipeline, environment, errCh)
 		}
 	}
 	// Wait for all the pipelines to finish.

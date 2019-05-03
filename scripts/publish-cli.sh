@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# AVOID INVOKING THIS SCRIPT DIRECTLY -- USE `drake run publish`
+# AVOID INVOKING THIS SCRIPT DIRECTLY -- USE `drake run publish-cli`
 
 set -euox pipefail
 
