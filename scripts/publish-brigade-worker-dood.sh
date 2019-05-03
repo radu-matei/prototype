@@ -11,10 +11,9 @@ else
 fi
 
 git_version=$(git describe --always --abbrev=7 --dirty)
+base_image_name=lovethedrake/prototype-brigade-worker
 
 docker login -u krancour -p $DOCKER_PASSWORD
-
-base_image_name=lovethedrake/prototype-brigade-worker
 
 set -x
 
