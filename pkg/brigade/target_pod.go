@@ -2,12 +2,14 @@ package brigade
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/brigadecore/brigade-github-app/pkg/webhook"
 	"github.com/lovethedrake/prototype/pkg/config"
 	"github.com/mattn/go-shellwords"
 	"github.com/pkg/errors"
@@ -34,35 +36,53 @@ func (e *executor) runTargetPod(
 	errCh chan<- error,
 ) {
 	var err error
-	if err = notifyCheckStart(event, target.Name(), target.Name()); err != nil {
+
+	webhookPayload := &webhook.Payload{}
+	if err = json.Unmarshal(event.Payload, webhookPayload); err != nil {
 		errCh <- err
 		return
+	}
+
+	if webhookPayload.Type == "check_run" ||
+		webhookPayload.Type == "check_suite" {
+		if err = notifyCheckStart(
+			webhookPayload,
+			target.Name(),
+			target.Name(),
+		); err != nil {
+			errCh <- err
+			return
+		}
 	}
 
 	jobName := fmt.Sprintf("%s-stage%d-%s", pipelineName, stage, target.Name())
 	podName := fmt.Sprintf("%s-%s", jobName, event.BuildID)
 
-	// Ensure notification
 	defer func() {
-		conclusion := "failure"
-		select {
-		case <-ctx.Done():
-			conclusion = "cancelled"
-		default:
-			if err == nil {
-				conclusion = "success"
-			} else if _, ok := err.(*timedOutError); ok {
-				conclusion = "timed_out"
+		// Ensure notification, if applicable
+		if webhookPayload.Type == "check_run" ||
+			webhookPayload.Type == "check_suite" {
+			conclusion := "failure"
+			select {
+			case <-ctx.Done():
+				conclusion = "cancelled"
+			default:
+				if err == nil {
+					conclusion = "success"
+				} else if _, ok := err.(*timedOutError); ok {
+					conclusion = "timed_out"
+				}
+			}
+			if nerr := notifyCheckCompleted(
+				webhookPayload,
+				target.Name(),
+				target.Name(),
+				conclusion,
+			); nerr != nil {
+				log.Printf("error sending notification to github: %s", nerr)
 			}
 		}
-		if nerr := notifyCheckCompleted(
-			event,
-			target.Name(),
-			target.Name(),
-			conclusion,
-		); nerr != nil {
-			log.Printf("error sending notification to github: %s", nerr)
-		}
+		// Return the error, even if it's nil
 		errCh <- err
 	}()
 
