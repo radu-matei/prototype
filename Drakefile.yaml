@@ -169,8 +169,6 @@ pipelines:
 ################################################################################
 
   foobar:
-    criteria:
-      manualOnly: true
     stages:
     - targets:
       - foo
@@ -181,8 +179,6 @@ pipelines:
 ################################################################################
 
   publish-brigade-worker-dood:
-    criteria:
-      manualOnly: true
     stages:
     - targets:
       - build-brigade-worker-dood
@@ -195,8 +191,8 @@ pipelines:
 
   test:
     criteria:
-      ignore:
-        branches:
+      branches:
+        ignore:
         - master
     stages:
     - targets:
@@ -213,8 +209,8 @@ pipelines:
 
   master:
     criteria:
-      only:
-        branches:
+      branches:
+        only:
         - master
     stages:
     - targets:
@@ -238,8 +234,8 @@ pipelines:
 
   release:
     criteria:
-      only:
-        tags:
+      tags:
+        only:
         - /v[0-9]+(\.[0-9]+)*(\-.+)?/
     stages:
     - targets:
