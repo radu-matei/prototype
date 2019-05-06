@@ -14,13 +14,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-func notifyCheckStart(event Event, name, title string) error {
-	data := &webhook.Payload{}
-	if err := json.Unmarshal(event.Payload, data); err != nil {
-		return err
-	}
-	token := data.Token
-	repo, commit, branch, err := repoCommitBranch(data)
+func notifyCheckStart(payload *webhook.Payload, name, title string) error {
+	token := payload.Token
+	repo, commit, branch, err := repoCommitBranch(payload)
 	if err != nil {
 		return err
 	}
@@ -41,13 +37,14 @@ func notifyCheckStart(event Event, name, title string) error {
 	return notifyGithub(run, parts[0], parts[1], token)
 }
 
-func notifyCheckCompleted(event Event, name, title, conclusion string) error {
-	data := &webhook.Payload{}
-	if err := json.Unmarshal(event.Payload, data); err != nil {
-		return err
-	}
-	token := data.Token
-	repo, commit, branch, err := repoCommitBranch(data)
+func notifyCheckCompleted(
+	payload *webhook.Payload,
+	name string,
+	title string,
+	conclusion string,
+) error {
+	token := payload.Token
+	repo, commit, branch, err := repoCommitBranch(payload)
 	if err != nil {
 		return err
 	}
