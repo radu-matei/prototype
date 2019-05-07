@@ -142,8 +142,6 @@ targets:
   publish-cli:
     containers:
     - <<: *baseGoContainer
-      environment:
-      - GITHUB_TOKEN=$GITHUB_TOKEN
       command: scripts/publish-cli.sh
 
   # This requires a lot of privilege to run and may be useful locally, but
