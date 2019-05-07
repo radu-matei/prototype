@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/lovethedrake/prototype/pkg/brigade"
-	"github.com/lovethedrake/prototype/pkg/signals"
+	"github.com/radu-matei/prototype/pkg/brigade"
+	"github.com/radu-matei/prototype/pkg/signals"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
