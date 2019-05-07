@@ -11,8 +11,8 @@ type Pipeline interface {
 
 type pipeline struct {
 	name     string
-	Criteria *pipelineExecutionCriteria `json:"criteria"`
-	Stages   []*pipelineStage           `json:"stages"`
+	Selector *pipelineSelector `json:"criteria"`
+	Stages   []*pipelineStage  `json:"stages"`
 	targets  [][]*target
 }
 
@@ -46,11 +46,11 @@ func (p *pipeline) Name() string {
 }
 
 func (p *pipeline) Matches(branch, tag string) (bool, error) {
-	// If no criteria are specified, the default is to match
-	if p.Criteria == nil {
-		return true, nil
+	// If no criteria are specified, the default is to NOT match
+	if p.Selector == nil {
+		return false, nil
 	}
-	return p.Criteria.Matches(branch, tag)
+	return p.Selector.Matches(branch, tag)
 }
 
 func (p *pipeline) Targets() [][]Target {
