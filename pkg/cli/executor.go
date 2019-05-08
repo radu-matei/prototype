@@ -9,8 +9,8 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/lovethedrake/prototype/pkg/config"
-	"github.com/lovethedrake/prototype/pkg/orchestration"
+	"github.com/radu-matei/prototype/pkg/config"
+	"github.com/radu-matei/prototype/pkg/orchestration"
 	"github.com/technosophos/moniker"
 )
 

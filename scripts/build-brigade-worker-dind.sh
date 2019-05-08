@@ -27,7 +27,7 @@ dockerd \
   --host=tcp://0.0.0.0:2375 \
   &> $dockerd_logs &
 
-base_image_name=lovethedrake/prototype-brigade-worker
+base_image_name=radu-matei/prototype-brigade-worker
 
 set -x
 

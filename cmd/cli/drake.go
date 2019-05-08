@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lovethedrake/prototype/pkg/version"
+	"github.com/radu-matei/prototype/pkg/version"
 	"github.com/urfave/cli"
 )
 

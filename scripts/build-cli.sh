@@ -21,7 +21,7 @@ fi
 
 git_version=$(git describe --always --abbrev=7 --dirty)
 
-base_package_name=github.com/lovethedrake/prototype
+base_package_name=github.com/radu-matei/prototype
 ldflags="-w -X $base_package_name/pkg/version.version=$rel_version -X $base_package_name/pkg/version.commit=$git_version"
 
 set -x

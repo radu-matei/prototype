@@ -7,7 +7,7 @@ import (
 	"log"
 	"regexp"
 
-	"github.com/lovethedrake/prototype/pkg/config"
+	"github.com/radu-matei/prototype/pkg/config"
 	"k8s.io/client-go/kubernetes"
 )
 

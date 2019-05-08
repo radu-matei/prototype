@@ -59,7 +59,7 @@ directory since Docker for Mac and Docker for Windows typically mount your
 home directory into the VM.
 
 With Docker functioning correctly, grab the latest pre-built `drake` binary from
-[here](https://github.com/lovethedrake/prototype/releases/latest), rename it as
+[here](https://github.com/radu-matei/prototype/releases/latest), rename it as
 `drake` and place it on your system's path.
 
 ### Custom Brigade Worker for Drake
@@ -94,7 +94,7 @@ shared storage uses a `StorageClass` that can provision `PersistentVolumes` that
 support access mode `ReadWriteMany` and ensure the following configuration
 related to a custom worker image is set as follows:
 
-* Docker registry or Docker Hub org: `lovethedrake`
+* Docker registry or Docker Hub org: `radu-matei`
 * Image: `prototype-brigade-worker`
 * Tag: `v0.0.1`
 * Command: `/brigade-worker/bin/brigade-worker`

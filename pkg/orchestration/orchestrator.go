@@ -3,7 +3,7 @@ package orchestration
 import (
 	"context"
 
-	"github.com/lovethedrake/prototype/pkg/config"
+	"github.com/radu-matei/prototype/pkg/config"
 )
 
 type Orchestrator interface {

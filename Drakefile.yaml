@@ -3,23 +3,23 @@ version: v1.0.0
 baseGoContainer: &baseGoContainer
   name: go
   image: quay.io/deis/lightweight-docker-go:v0.6.0
-  sourceMountPath: /go/src/github.com/lovethedrake/prototype
-  workingDirectory: /go/src/github.com/lovethedrake/prototype
+  sourceMountPath: /go/src/github.com/radu-matei/prototype
+  workingDirectory: /go/src/github.com/radu-matei/prototype
   tty: true
 
 baseDoodContainer: &baseDoodContainer
   name: dood
   image: krancour/dind:18.09.5
-  sourceMountPath: /go/src/github.com/lovethedrake/prototype
-  workingDirectory: /go/src/github.com/lovethedrake/prototype
+  sourceMountPath: /go/src/github.com/radu-matei/prototype
+  workingDirectory: /go/src/github.com/radu-matei/prototype
   mountDockerSocket: true
   tty: true
 
 baseDindContainer: &baseDindContainer
   name: dind
   image: krancour/dind:18.09.5
-  sourceMountPath: /go/src/github.com/lovethedrake/prototype
-  workingDirectory: /go/src/github.com/lovethedrake/prototype
+  sourceMountPath: /go/src/github.com/radu-matei/prototype
+  workingDirectory: /go/src/github.com/radu-matei/prototype
   privileged: true
 
 baseDemoContainer: &baseDemoContainer
@@ -36,8 +36,8 @@ targets:
     containers:
     - name: env
       image: debian:stretch
-      sourceMountPath: /go/src/github.com/lovethedrake/prototype
-      workingDirectory: /go/src/github.com/lovethedrake/prototype
+      sourceMountPath: /go/src/github.com/radu-matei/prototype
+      workingDirectory: /go/src/github.com/radu-matei/prototype
       command: scripts/env.sh
 
   foo:
